@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>运动记录生成器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #f2f2f7;
+    padding: 12px;
+    -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+}
+
+/* ===== 控制面板 ===== */
+.panel {
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.panel h3 { font-size: 17px; color: #333; margin-bottom: 12px; text-align: center; }
+.row { display: flex; gap: 8px; margin-bottom: 10px; }
+.field { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 13px; color: #666; }
+.field input, .field select {
+    padding: 10px 8px; border: 1px solid #ddd; border-radius: 8px;
+    font-size: 16px; outline: none; background: #fff;
+    -webkit-appearance: none; appearance: none;
+    width: 100%;
+}
+.field input:focus, .field select:focus { border-color: #07c160; }
+.full { margin-bottom: 10px; }
+.slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.slider-row label { font-size: 13px; color: #666; white-space: nowrap; min-width: 68px; }
+.slider-row input[type="range"] { flex: 1; accent-color: #07c160; height: 32px; }
+.slider-row span { font-size: 13px; color: #333; min-width: 40px; text-align: right; }
+
+.btn-save {
+    display: block; width: 100%; padding: 14px; background: #07c160;
+    color: #fff; font-size: 16px; font-weight: 600; border: none;
+    border-radius: 10px; cursor: pointer; text-align: center;
+    margin-top: 6px; -webkit-tap-highlight-color: transparent;
+}
+.btn-save:active { background: #06ad56; }
+
+/* ===== 手机预览区 ===== */
+#phone {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    background: #ededed;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: #ededed; height: 48px;
+}
+.nav .back { font-size: 22px; }
+.nav .title { font-size: 17px; font-weight: 600; }
+.nav .placeholder { width: 22px; }
+
+.list { padding: 4px 0; }
+
+.section { margin-bottom: 16px; }
+.section-label { font-size: 14px; color: #999; padding: 4px 16px 8px; }
+
+.card {
+    margin: 0 12px;
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.card-left { display: flex; align-items: baseline; gap: 8px; }
+.step-label { font-size: 16px; color: #aaaaaa; }
+.step-num { font-size: 25px; color: #f09d3a; font-style: italic; font-weight: 500; }
+.step-unit { font-size: 16px; color: #aaaaaa; }
+.card-right { display: flex; align-items: center; gap: 6px; }
+.heart-num { font-size: 16px; color: #ccc; }
+.heart-icon { font-size: 20px; color: #ddd; }
+
+/* 红色水印文字 */
+#watermark {
+    position: relative;
+    z-index: 99;
+    text-align: right;
+    pointer-events: none;
+}
+#watermark .wm-line {
+    color: #d4380d;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.6;
+    text-shadow: 0 0 2px rgba(255,255,255,.6);
+}
+</style>
+</head>
+<body>
+
+<!-- 控制面板 -->
+<div class="panel">
+    <h3>微信运动截图生成器</h3>
+
+    <div class="row">
+        <div class="field">
+            <label>今日步数</label>
+            <input id="todaySteps" type="number" value="" oninput="render()">
+        </div>
+        <div class="field">
+            <label>昨日步数</label>
+            <input id="yesterdaySteps" type="number" value="" oninput="render()">
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="field">
+            <label>日期</label>
+            <input id="wmDate" type="date" oninput="render()">
+        </div>
+        <div class="field">
+            <label>地点</label>
+            <select id="wmLocation" onchange="render()">
+                <option value="东区1号线" selected>西区3号线</option>
+                <option value="东区2号线">东区1号线</option>
+                <option value="东区3号线">东区2号线</option>
+                <option value="东区5号线">西区1号线</option>
+                <option value="东区6号线">西区2号线</option>
+                <option value="西区1号线">南区巡逻</option>
+                
+            </select>
+        </div>
+    </div>
+
+    <div class="row full">
+        <div class="field">
+            <label>姓名</label>
+            <input id="wmName" type="text" value="王一坤" oninput="render()">
+        </div>
+    </div>
+
+    <!-- 红字位置控制 -->
+    <div class="slider-row">
+        <label>红字上下</label>
+        <input type="range" id="wmOffsetY" min="-120" max="60" value="-88" oninput="render()">
+        <span id="wmOffsetYVal">0px</span>
+    </div>
+    <div class="slider-row">
+        <label>红字左右</label>
+        <input type="range" id="wmOffsetX" min="-200" max="100" value="-45" oninput="render()">
+        <span id="wmOffsetXVal">0px</span>
+    </div>
+
+    <button class="btn-save" onclick="saveImage()">保存图片</button>
+</div>
+
+<!-- 手机预览区 -->
+<div id="phone">
+    <div class="nav">
+        <span class="back">‹</span>
+        <span class="title">运动记录</span>
+        <span class="placeholder"></span>
+    </div>
+
+    <div class="list">
+        <!-- 今日 -->
+        <div class="section">
+            <div class="section-label">今日</div>
+            <div class="card">
+                <div class="card-left">
+                    <span class="step-label">步数</span>
+                    <span class="step-num" id="dTodaySteps">14653</span>
+                    <span class="step-unit">步</span>
+                </div>
+                <div class="card-right">
+                    <span class="heart-num">0</span>
+                    <span class="heart-icon">♥</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 昨日 -->
+        <div class="section" style="position: relative;">
+            <div class="section-label">昨日</div>
+            <div class="card">
+                <div class="card-left">
+                    <span class="step-label">步数</span>
+                    <span class="step-num" id="dYesterdaySteps">19688</span>
+                    <span class="step-unit">步</span>
+                </div>
+                <div class="card-right">
+                    <span class="heart-num">0</span>
+                    <span class="heart-icon">♥</span>
+                </div>
+            </div>
+
+            <!-- 红色水印 -->
+            <div id="watermark">
+                <div id="wmLines"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 初始化：日期默认昨天，步数随机
+(function init() {
+    // 日期：昨天
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    document.getElementById('wmDate').value = yyyy + '-' + mm + '-' + dd;
+
+    // 今日步数：8300~10000 随机
+    const todaySteps = Math.floor(Math.random() * (10000 - 8300 + 1)) + 8300;
+    document.getElementById('todaySteps').value = todaySteps;
+
+    // 昨日步数：17000~20000 随机
+    const yesterdaySteps = Math.floor(Math.random() * (20000 - 17000 + 1)) + 17000;
+    document.getElementById('yesterdaySteps').value = yesterdaySteps;
+
+    render();
+})();
+
+function render() {
+    // 步数
+    document.getElementById('dTodaySteps').textContent = document.getElementById('todaySteps').value || '0';
+    document.getElementById('dYesterdaySteps').textContent = document.getElementById('yesterdaySteps').value || '0';
+
+    // 读取控件值
+    const dateVal = document.getElementById('wmDate').value;
+    const location = document.getElementById('wmLocation').value;
+    const name = document.getElementById('wmName').value;
+    const offsetY = document.getElementById('wmOffsetY').value;
+    const offsetX = document.getElementById('wmOffsetX').value;
+
+    // 格式化日期为 yyyy年m月d日
+    let dateStr = '';
+    if (dateVal) {
+        const parts = dateVal.split('-');
+        dateStr = parts[0] + '年' + parseInt(parts[1]) + '月' + parseInt(parts[2]) + '日';
+    }
+
+    // 渲染红字
+    let html = '';
+    if (dateStr) {
+        html += '<div class="wm-line">' + dateStr + '</div>';
+    }
+    if (location) {
+        html += '<div class="wm-line">' + location + '</div>';
+    }
+    if (name) {
+        html += '<div class="wm-line">' + name + '</div>';
+    }
+    document.getElementById('wmLines').innerHTML = html;
+
+    // 红字位置偏移
+    const wm = document.getElementById('watermark');
+    wm.style.marginTop = offsetY + 'px';
+    wm.style.paddingRight = Math.max(0, 24 - parseInt(offsetX)) + 'px';
+    wm.style.paddingLeft = Math.max(0, parseInt(offsetX)) + 'px';
+
+    document.getElementById('wmOffsetYVal').textContent = offsetY + 'px';
+    document.getElementById('wmOffsetXVal').textContent = offsetX + 'px';
+}
+
+function saveImage() {
+    const el = document.getElementById('phone');
+    html2canvas(el, { scale: 2, backgroundColor: '#ededed', useCORS: true }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = '运动记录_' + Date.now() + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }).catch(err => {
+        alert('保存失败，请长按预览区域截图保存。');
+    });
+}
+</script>
+</body>
+</html>
