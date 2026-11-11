@@ -239,6 +239,11 @@ function render() {
     document.getElementById('dTodaySteps').textContent = document.getElementById('todaySteps').value || '0';
     document.getElementById('dYesterdaySteps').textContent = document.getElementById('yesterdaySteps').value || '0';
 
+const t = parseInt(document.getElementById('todaySteps').value) || 0;
+const y = parseInt(document.getElementById('yesterdaySteps').value) || 0;
+document.getElementById('dTodaySteps').style.color = t < 10000 ? '#07c160' : '#f09d3a';
+document.getElementById('dYesterdaySteps').style.color = y < 8000 ? '#07c160' : '#f09d3a';
+
     // 读取控件值
     const dateVal = document.getElementById('wmDate').value;
     const location = document.getElementById('wmLocation').value;
